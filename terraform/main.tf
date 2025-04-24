@@ -69,6 +69,35 @@ module "serverless_user" {
               "iam:UntagRole"
             ],
             "Resource" : "arn:aws:iam::*:role/*"
+          },
+          {
+            "Effect" : "Allow",
+            "Action" : [
+              "ssm:GetParameter",
+              "ssm:GetParameters"
+            ],
+            "Resource" : [
+              "arn:aws:ssm:*:*:parameter/${var.app_name}/${local.app_env}/b2_*"
+            ]
+          },
+          {
+            "Effect" : "Allow",
+            "Action" : [
+              "lambda:GetFunction",
+              "lambda:CreateFunction",
+              "lambda:UpdateFunctionCode",
+              "lambda:UpdateFunctionConfiguration",
+              "lambda:ListVersionsByFunction",
+              "lambda:PublishVersion",
+              "lambda:CreateAlias",
+              "lambda:UpdateAlias",
+              "lambda:DeleteAlias",
+              "events:PutRule",
+              "events:PutTargets",
+              "events:RemoveTargets",
+              "events:DeleteRule"
+            ],
+            "Resource" : "*"
           }
         ]
       }
@@ -173,4 +202,28 @@ resource "aws_dynamodb_table" "u2f" {
   lifecycle {
     ignore_changes = [replica]
   }
+}
+
+resource "aws_ssm_parameter" "b2_endpoint_url" {
+  name  = "/${var.app_name}/${local.app_env}/b2_endpoint_url"
+  type  = "String"
+  value = var.b2_endpoint_url
+}
+
+resource "aws_ssm_parameter" "b2_application_key_id" {
+  name  = "/${var.app_name}/${local.app_env}/b2_application_key_id"
+  type  = "SecureString"
+  value = var.b2_application_key_id
+}
+
+resource "aws_ssm_parameter" "b2_application_key" {
+  name  = "/${var.app_name}/${local.app_env}/b2_application_key"
+  type  = "SecureString"
+  value = var.b2_application_key
+}
+
+resource "aws_ssm_parameter" "b2_bucket_name" {
+  name  = "/${var.app_name}/${local.app_env}/b2_bucket_name"
+  type  = "String"
+  value = var.b2_bucket_name
 }

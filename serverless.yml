@@ -173,17 +173,17 @@ functions:
     handler: handlers/s3ToB2Backup.handler
     name: ${self:custom.namespace}_s3ToB2Backup
     environment:
-      B2_ENDPOINT_URL: ${env:B2_ENDPOINT_URL}
-      B2_APPLICATION_KEY_ID: ${env:B2_APPLICATION_KEY_ID}
-      B2_APPLICATION_KEY: ${env:B2_APPLICATION_KEY}
-      B2_BUCKET_NAME: ${env:B2_BUCKET_NAME}
+      B2_ENDPOINT_URL: ${ssm:/${self:service}/${sls:stage}/b2_endpoint_url}
+      B2_APPLICATION_KEY_ID: ${ssm:/${self:service}/${sls:stage}/b2_application_key_id~true}
+      B2_APPLICATION_KEY: ${ssm:/${self:service}/${sls:stage}/b2_application_key~true}
+      B2_BUCKET_NAME: ${ssm:/${self:service}/${sls:stage}/b2_bucket_name}
       SOURCE_BUCKET_NAME: silidp.backups.dynamodb.mfa-api
     events:
       - schedule:
-          rate: cron(0 3 * * ? *)  # Run daily at 3:00 AM UTC
+          rate: cron(0 3 * * ? *)
           enabled: true
-    timeout: 900  # 15 minutes to handle potentially more files
-    memorySize: 1024  # More memory for processing multiple files
+    timeout: 900
+    memorySize: 1024
     tags: ${self:custom.functionTags}
 
 resources:

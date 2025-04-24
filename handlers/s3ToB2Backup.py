@@ -1,43 +1,43 @@
-#
-# AWS Lambda function to backup S3 files to Backblaze
-#
+# AWS Lambda function to backup S3 files to Backblaze B2
 import os
 import json
 import boto3
 import logging
-from datetime import datetime, timedelta
 
-# Config for logging
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def handler(event, context):
     """
     Daily scheduled function to backup all files in S3 bucket to Backblaze B2.
     """
+    # Get environment variables from the AWS Parameter Store
+    b2_endpoint_url = os.environ.get('B2_ENDPOINT_URL')
+    b2_key_id = os.environ.get('B2_APPLICATION_KEY_ID')
+    b2_app_key = os.environ.get('B2_APPLICATION_KEY')
+    b2_bucket = os.environ.get('B2_BUCKET_NAME')
+    source_bucket = os.environ.get('SOURCE_BUCKET_NAME')
+
+    # Log configuration (without sensitive values)
+    logger.info(f"Starting backup from {source_bucket} to B2 bucket {b2_bucket}")
+    logger.info(f"Using B2 endpoint: {b2_endpoint_url}")
+
     # Initialize source S3 client (AWS)
     source_s3 = boto3.client('s3')
 
     # Initialize destination S3 client (Backblaze B2)
     destination_s3 = boto3.client(
         's3',
-        endpoint_url=os.environ.get('B2_ENDPOINT_URL'),
-        aws_access_key_id=os.environ.get('B2_APPLICATION_KEY_ID'),
-        aws_secret_access_key=os.environ.get('B2_APPLICATION_KEY'),
+        endpoint_url=b2_endpoint_url,
+        aws_access_key_id=b2_key_id,
+        aws_secret_access_key=b2_app_key,
         # Downgrade checksum behavior as recommended by Backblaze
         config=boto3.session.Config(s3={'payload_signing_enabled': False})
     )
 
-    # Get bucket names from environment variables
-    source_bucket = os.environ.get('SOURCE_BUCKET_NAME')
-    destination_bucket = os.environ.get('B2_BUCKET_NAME')
-
-    # Calculate yesterday's date for filtering (optional)
-    yesterday = datetime.now() - timedelta(days=1)
-    yesterday_str = yesterday.strftime('%Y-%m-%d')
-
     files_processed = 0
-    files_skipped = 0
 
     try:
         # List all objects in source bucket
@@ -46,18 +46,18 @@ def handler(event, context):
         # Process each page of results
         for page in paginator.paginate(Bucket=source_bucket):
             if 'Contents' not in page:
+                logger.info(f"No contents found in this page of results")
                 continue
+
+            logger.info(f"Processing page with {len(page['Contents'])} objects")
 
             # Process each object in the bucket
             for obj in page['Contents']:
                 object_key = obj['Key']
-                last_modified = obj['LastModified']
 
-                # Optional: Only process files modified in the last day
-                # Remove this condition if you want to process all files
-                if last_modified.strftime('%Y-%m-%d') >= yesterday_str:
-                    logger.info(f"Processing: {source_bucket}/{object_key}")
+                logger.info(f"Processing: {object_key}")
 
+                try:
                     # Download from source S3
                     response = source_s3.get_object(
                         Bucket=source_bucket,
@@ -67,7 +67,7 @@ def handler(event, context):
 
                     # Upload to destination B2 bucket
                     destination_s3.put_object(
-                        Bucket=destination_bucket,
+                        Bucket=b2_bucket,
                         Key=object_key,
                         Body=file_data,
                         ContentType=response.get('ContentType', 'application/octet-stream')
@@ -75,16 +75,18 @@ def handler(event, context):
 
                     logger.info(f"Successfully backed up: {object_key}")
                     files_processed += 1
-                else:
-                    files_skipped += 1
+                except Exception as file_error:
+                    # Log error but continue with other files
+                    logger.error(f"Error processing file {object_key}: {str(file_error)}")
 
+        logger.info(f"Backup complete. Processed {files_processed} files.")
         return {
             'statusCode': 200,
-            'body': json.dumps(f'Backup completed successfully. Processed: {files_processed}, Skipped: {files_skipped}')
+            'body': json.dumps(f'Backup completed successfully. Processed: {files_processed} files')
         }
 
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
+        logger.error(f"Error during backup process: {str(e)}")
         return {
             'statusCode': 500,
             'body': json.dumps(f'Error during backup: {str(e)}')
