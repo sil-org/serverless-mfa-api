@@ -222,3 +222,21 @@ resources:
       Properties:
         RetentionInDays: "60"
         Tags: ${self:custom.resourceTags}
+
+functions:
+  s3ToB2Backup:
+    handler: handlers/b2-backup.handler
+    name: ${self:custom.namespace}_s3ToB2Backup
+    environment:
+      B2_ENDPOINT_URL: ${env:B2_ENDPOINT_URL}
+      B2_APPLICATION_KEY_ID: ${env:B2_APPLICATION_KEY_ID}
+      B2_APPLICATION_KEY: ${env:B2_APPLICATION_KEY}
+      B2_BUCKET_NAME: ${env:B2_BUCKET_NAME}
+      SOURCE_BUCKET_NAME: silidp.backups.dynamodb.mfa-api
+    events:
+      - schedule:
+          rate: cron(0 3 * * ? *)  # Run daily at 3:00 AM UTC
+          enabled: true
+    timeout: 900  # 15 minutes to handle potentially more files
+    memorySize: 1024  # More memory for processing multiple files
+    tags: ${self:custom.functionTags}
