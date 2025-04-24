@@ -225,7 +225,7 @@ resources:
 
 functions:
   s3ToB2Backup:
-    handler: handlers/b2-backup.handler
+    handler: handlers/s3ToB2Backup.handler
     name: ${self:custom.namespace}_s3ToB2Backup
     environment:
       B2_ENDPOINT_URL: ${env:B2_ENDPOINT_URL}
