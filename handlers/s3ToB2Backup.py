@@ -20,7 +20,7 @@ def handler(event, context):
     b2_bucket = os.environ.get('B2_BUCKET_NAME')
     source_bucket = os.environ.get('SOURCE_BUCKET_NAME')
 
-    # Log configuration (without sensitive values)
+    # Log configuration
     logger.info(f"Starting backup from {source_bucket} to B2 bucket {b2_bucket}")
     logger.info(f"Using B2 endpoint: {b2_endpoint_url}")
 
@@ -33,7 +33,6 @@ def handler(event, context):
         endpoint_url=b2_endpoint_url,
         aws_access_key_id=b2_key_id,
         aws_secret_access_key=b2_app_key,
-        # Downgrade checksum behavior as recommended by Backblaze
         config=boto3.session.Config(s3={'payload_signing_enabled': False})
     )
 

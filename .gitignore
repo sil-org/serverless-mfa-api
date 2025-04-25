@@ -28,3 +28,7 @@ local.env
 
 # Terraform
 .terraform/
+
+#Virtual env
+
+venv

@@ -172,6 +172,7 @@ functions:
   s3ToB2Backup:
     handler: handlers/s3ToB2Backup.handler
     name: ${self:custom.namespace}_s3ToB2Backup
+    runtime: python3.9
     environment:
       B2_ENDPOINT_URL: ${ssm:/${self:service}/${sls:stage}/b2_endpoint_url}
       B2_APPLICATION_KEY_ID: ${ssm:/${self:service}/${sls:stage}/b2_application_key_id~true}
@@ -183,7 +184,7 @@ functions:
           rate: cron(0 3 * * ? *)
           enabled: true
     timeout: 900
-    memorySize: 1024
+    memorySize: 512
     tags: ${self:custom.functionTags}
 
 resources:
