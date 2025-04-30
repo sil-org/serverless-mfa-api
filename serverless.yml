@@ -239,4 +239,3 @@ resources:
       Properties:
         RetentionInDays: "60"
         Tags: ${self:custom.resourceTags}
-
