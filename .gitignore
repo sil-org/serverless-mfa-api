@@ -28,3 +28,4 @@ local.env
 
 # Terraform
 .terraform/
+venv

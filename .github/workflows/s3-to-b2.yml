@@ -1,0 +1,70 @@
+name: Backup S3 to B2
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_access_key:
+        description: 'AWS Access Key'
+        required: true
+        type: string
+      aws_secret_key:
+        description: 'AWS Secret Key'
+        required: true
+        type: string
+      b2_account_id:
+        description: 'B2 Account ID'
+        required: true
+        type: string
+      b2_app_key:
+        description: 'B2 App Key'
+        required: true
+        type: string
+      s3_bucket:
+        description: 'S3 Bucket Name'
+        required: true
+        type: string
+      b2_bucket:
+        description: 'B2 Bucket Name'
+        required: true
+        type: string
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key }}
+      AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_key }}
+
+    steps:
+    - name: Install AWS CLI and zip
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y awscli zip
+
+    - name: Download S3 bucket contents
+      run: |
+        mkdir s3_backup
+        aws s3 sync s3://${{ inputs.s3_bucket }} ./s3_backup
+
+    - name: Zip the S3 data
+      run: |
+        zip -r s3_backup.zip ./s3_backup
+
+    - name: Install rclone
+      run: |
+        curl https://rclone.org/install.sh | sudo bash
+
+    - name: Configure rclone for B2
+      run: |
+        mkdir -p ~/.config/rclone
+        cat <<EOF > ~/.config/rclone/rclone.conf
+        [b2]
+        type = b2
+        account = ${{ inputs.b2_account_id }}
+        key = ${{ inputs.b2_app_key }}
+        EOF
+
+    - name: Upload backup to B2
+      run: |
+        rclone copy s3_backup.zip b2:${{ inputs.b2_bucket }} --progress
