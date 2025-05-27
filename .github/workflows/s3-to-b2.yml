@@ -1,63 +1,93 @@
 name: Backup S3 to B2
 
 on:
+  # Manual trigger (no inputs needed - uses secrets)
+  workflow_dispatch:
+
+  # Automatic schedule (optional - runs weekly on Sundays at 2 AM UTC)
+  schedule:
+    - cron: '0 2 * * 0'
+
+  # Push trigger for testing
   push:
     branches:
       - feature/workflow
-  workflow_dispatch:
-    inputs:
-      aws_access_key:
-        description: 'AWS Access Key'
-        required: true
-        type: string
-      aws_secret_key:
-        description: 'AWS Secret Key'
-        required: true
-        type: string
-      b2_account_id:
-        description: 'B2 Account ID'
-        required: true
-        type: string
-      b2_app_key:
-        description: 'B2 App Key'
-        required: true
-        type: string
-      s3_bucket:
-        description: 'S3 Bucket Name'
-        required: true
-        type: string
-      b2_bucket:
-        description: 'B2 Bucket Name'
-        required: true
-        type: string
+      - main
 
 jobs:
   backup:
     runs-on: ubuntu-latest
 
+    # Set environment variables from GitHub Secrets
     env:
-      AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key }}
-      AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_key }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      B2_ACCOUNT_ID: ${{ secrets.B2_ACCOUNT_ID }}
+      B2_APP_KEY: ${{ secrets.B2_APP_KEY }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+      B2_BUCKET: ${{ secrets.B2_BUCKET }}
 
     steps:
-    - name: Install AWS CLI and zip
+    - name: Validate required secrets
+      run: |
+        if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+          echo "Error: AWS credentials not found in secrets"
+          exit 1
+        fi
+        if [ -z "$B2_ACCOUNT_ID" ] || [ -z "$B2_APP_KEY" ]; then
+          echo "Error: B2 credentials not found in secrets"
+          exit 1
+        fi
+        if [ -z "$S3_BUCKET" ] || [ -z "$B2_BUCKET" ]; then
+          echo "Error: Bucket names not found in secrets"
+          exit 1
+        fi
+        echo "All required secrets are present"
+
+    - name: Install AWS CLI
       run: |
         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
         unzip awscliv2.zip
         sudo ./aws/install --update
+        aws --version
+
+    - name: Test AWS connection
+      run: |
+        echo "Testing AWS connection..."
+        aws sts get-caller-identity
+        echo "AWS connection successful"
 
     - name: Download S3 bucket contents
       run: |
         mkdir s3_backup
-        aws s3 sync s3://${{ inputs.s3_bucket }} ./s3_backup
+        echo "Downloading S3 bucket: $S3_BUCKET"
+        aws s3 sync "s3://$S3_BUCKET" ./s3_backup --delete
+        
+        # Show downloaded file count
+        file_count=$(find s3_backup -type f | wc -l)
+        echo "Downloaded $file_count files from S3"
 
-    - name: Zip the S3 data
+    - name: Create backup archive
       run: |
+        echo "Creating backup archive..."
         zip -r s3_backup.zip ./s3_backup
+        
+        # Show archive size
+        archive_size=$(du -h s3_backup.zip | cut -f1)
+        echo "Archive size: $archive_size"
+
+    - name: Generate checksum
+      run: |
+        echo "Generating checksum..."
+        sha256sum s3_backup.zip > s3_backup.zip.sha256
+        
+        echo "SHA256 checksum generated:"
+        echo "$(cat s3_backup.zip.sha256)"
 
     - name: Install rclone
       run: |
         curl https://rclone.org/install.sh | sudo bash
+        rclone version
 
     - name: Configure rclone for B2
       run: |
@@ -65,10 +95,50 @@ jobs:
         cat <<EOF > ~/.config/rclone/rclone.conf
         [b2]
         type = b2
-        account = ${{ inputs.b2_account_id }}
-        key = ${{ inputs.b2_app_key }}
+        account = $B2_ACCOUNT_ID
+        key = $B2_APP_KEY
         EOF
+
+    - name: Test B2 connection
+      run: |
+        echo "Testing B2 connection..."
+        rclone lsd b2: --max-items 1
+        echo "B2 connection successful"
 
     - name: Upload backup to B2
       run: |
-        rclone copy s3_backup.zip b2:${{ inputs.b2_bucket }} --progress
+        echo "Uploading backup archive to B2 bucket: $B2_BUCKET"
+        rclone copy s3_backup.zip "b2:$B2_BUCKET" --progress -v
+        
+        echo "Uploading checksum file to B2 bucket: $B2_BUCKET"
+        rclone copy s3_backup.zip.sha256 "b2:$B2_BUCKET" --progress -v
+
+    - name: Verify upload
+      run: |
+        echo "Verifying upload..."
+        
+        if rclone ls "b2:$B2_BUCKET" | grep "s3_backup.zip"; then
+          echo "Backup archive uploaded successfully"
+        else
+          echo "Error: Backup archive upload failed"
+          exit 1
+        fi
+        
+        if rclone ls "b2:$B2_BUCKET" | grep "s3_backup.zip.sha256"; then
+          echo "SHA256 checksum uploaded successfully"
+        else
+          echo "Error: SHA256 checksum upload failed"
+          exit 1
+        fi
+
+    - name: Cleanup and summary
+      run: |
+        echo "Cleaning up temporary files..."
+        rm -rf s3_backup s3_backup.zip s3_backup.zip.sha256
+        
+        echo "Backup completed successfully"
+        echo "Source: S3 bucket '$S3_BUCKET'"
+        echo "Destination: B2 bucket '$B2_BUCKET'"
+        echo "Files uploaded:"
+        echo "- s3_backup.zip (main backup archive)"
+        echo "- s3_backup.zip.sha256 (SHA256 checksum)"
