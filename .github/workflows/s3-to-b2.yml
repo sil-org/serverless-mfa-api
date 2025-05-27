@@ -1,6 +1,9 @@
 name: Backup S3 to B2
 
 on:
+  push:
+    branches:
+      - feature/workflow
   workflow_dispatch:
     inputs:
       aws_access_key:
