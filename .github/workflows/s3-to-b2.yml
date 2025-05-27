@@ -1,18 +1,10 @@
 name: Backup S3 to B2
 
 on:
-  # Manual trigger (no inputs needed - uses secrets)
   workflow_dispatch:
-
-  # Automatic schedule (optional - runs weekly on Sundays at 2 AM UTC)
+  # Automatic schedule
   schedule:
     - cron: '0 2 * * 0'
-
-  # Push trigger for testing
-  push:
-    branches:
-      - feature/workflow
-      - main
 
 jobs:
   backup:
