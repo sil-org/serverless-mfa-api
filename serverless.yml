@@ -4,7 +4,7 @@ frameworkVersion: ^3.7
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   timeout: 30
 
   # Experimented with various memory sizes. Manually calling the totpValidate
