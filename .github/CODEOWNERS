@@ -1,4 +1,4 @@
-terraform/ @silinternational/tf-devs
+terraform/ @sil-org/tf-devs
 *.js @sil-org/js-devs
 *.mjs @sil-org/js-devs
 *.ts @sil-org/js-devs
