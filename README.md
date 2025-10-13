@@ -1,3 +1,7 @@
+# ARCHIVED
+
+This repository is archived. It has been superseded by [serverless-mfa-api-go](https://github.com/sil-org/serverless-mfa-api-go).
+
 # Serverless MFA API
 A Serverless API for registering and validating Multi-Factor Authentication methods.
 
